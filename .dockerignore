@@ -1,0 +1,5 @@
+.venv
+Input_Video
+outputs
+**/__pycache__
+*.pdf

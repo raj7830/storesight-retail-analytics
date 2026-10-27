@@ -1,0 +1,17 @@
+# environment
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# footage, people images and results stay local (privacy)
+Input_Video/
+outputs/
+data/
+*.mp4
+*.mov
+*.avi
+*.pdf
+
+# public weights are downloaded by `python -m src.tools.download_models`
+models/*.pt

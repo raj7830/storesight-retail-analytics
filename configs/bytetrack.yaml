@@ -1,0 +1,9 @@
+# ByteTrack settings (Ultralytics format), tuned for a fixed CCTV camera
+# analysed at ~10 fps.
+tracker_type: bytetrack
+track_high_thresh: 0.35   # detections used for the first association pass
+track_low_thresh: 0.10    # low-score boxes recover partially occluded people
+new_track_thresh: 0.45    # avoid spawning tracks from one-off false positives
+track_buffer: 40          # frames a lost track is kept (40 @ 10 fps = 4 s, people hide behind shelves)
+match_thresh: 0.85
+fuse_score: true

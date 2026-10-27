@@ -1,0 +1,156 @@
+# =============================================================================
+# Retail Behavioural Analytics - scene + threshold configuration
+#
+# Every threshold that turns a business definition into a measurable event
+# lives here, with the reasoning next to it. Times are in SECONDS and distances
+# are normalised by the person's bounding-box height ("body heights", bh) so
+# the same numbers work near and far from the camera (perspective-invariant).
+# 1 bh ~= 1.65 m for an adult.
+# =============================================================================
+
+runtime:
+  # Frames analysed per second. CCTV is 30 fps but behaviour happens on a
+  # scale of seconds; 10 fps keeps tracking stable while leaving headroom to
+  # run faster than real time on an Apple M1 / modest GPU.
+  analysis_fps: 10
+  # "auto" -> cuda > mps > cpu
+  device: auto
+
+model:
+  # Pose model: we need body keypoints (nose/eyes/ears/shoulders) to estimate
+  # where a person is facing, so a pose detector replaces a plain detector.
+  # The "s" model at 1280 px input is the accuracy/speed sweet spot here: the
+  # passers-by in the mall are only ~60-90 px tall, so down-scaling hurts.
+  weights: models/yolo11s-pose.pt
+  imgsz: 1280
+  conf: 0.30
+  iou: 0.60
+  tracker: configs/bytetrack.yaml
+  # Second detector for the mall walkway behind the glass (see Detector in
+  # src/tracking.py). The crop is up-scaled 1.5x (640 px wide -> 960) which
+  # lifts recall on 20x50 px people at ~30 ms extra per frame.
+  roi_detector:
+    weights: models/yolo11s.pt
+    box: [190, 0, 830, 270]
+    imgsz: 960
+    conf: 0.25
+  # Keypoints below this confidence are treated as not visible.
+  kpt_conf: 0.50
+
+identity:
+  # ByteTrack occasionally drops a person behind a shelf and re-spawns them
+  # with a new ID. We re-attach a new track to a recently lost person if it
+  # appears close by with a similar look, so unique counts are not inflated.
+  stitch_max_gap_s: 2.5          # longer gaps -> treat as a different person
+  stitch_max_dist_bh: 1.0        # max jump (bh) allowed, grows with the gap
+  stitch_min_appearance: 0.55    # colour-histogram similarity (0..1)
+  min_track_life_s: 1.0          # shorter tracks are noise (never reported)
+  # The opposite failure: when two people cross, the tracker can move one
+  # person's ID onto the other. If a track's clothing colours stop matching
+  # the person's reference look for split_frames consecutive frames
+  # (0.6 s @ 10 fps - longer than a brief occlusion), it is split off as a
+  # new identity. The bar is far below the stitch threshold so that lighting
+  # and pose changes of the same person never trigger it.
+  split_max_appearance: 0.30
+  split_frames: 6
+  # Staff instances: consecutive staff identities separated by <= this gap
+  # and similar in appearance are one instance (see Pipeline.staff_instances).
+  staff_merge_gap_s: 10.0
+  staff_merge_min_appearance: 0.45
+
+staff:
+  # The store uniform is a black apron: bib with a round white logo at the
+  # front, crossed straps at the back, worn over the staff member's own top
+  # (seen over a rust shirt and over a black shirt in this footage). Colour
+  # rules fail here - customers wear black tops and rust/brown patterned
+  # dresses - so a linear classifier on CLIP image embeddings, trained on
+  # labelled crops from this store (data/staff_enrollment), recognises the
+  # apron from front, back and side. 96% per-crop accuracy under time-grouped
+  # cross-validation; per-person voting over many crops removes most of the
+  # remaining errors.
+  classifier: models/staff_classifier.pkl
+  sample_every_s: 0.5            # classify each person twice per second...
+  min_crop_height_px: 60         # ...when the crop is big enough to be useful
+  # Per-person decision = mean probability over the samples so far. A person
+  # becomes STAFF once mean > 0.5 with >= 3 samples; the label locks after
+  # 8 samples when the mean is decisive (> 0.7 or < 0.3).
+  min_samples: 3
+  lock_samples: 8
+  lock_margin: 0.2
+
+scene:
+  frame_size: [1280, 720]
+  # Entrance boundary between the mall walkway and the store floor (pixels).
+  entrance_line: [[237, 243], [791, 66]]
+  # Any point known to be inside the store; tells us which side is "in".
+  inside_point: [640, 500]
+  # The visible mall walkway in front of the store. Only people first seen
+  # here are "passers-by" for Task 1 (people already inside are shoppers).
+  outside_zone: [[205, 0], [800, 0], [791, 66], [237, 243], [205, 255]]
+  # Regions where detections are discarded (e.g. mirror reflections).
+  ignore_zones:
+    - [[95, 225], [250, 225], [250, 430], [95, 430]]     # wall mirror (left)
+  shelves:
+    # Shelf areas where customer interest is measured (pixels).
+    Shelf_A: [[414, 306], [825, 306], [825, 719], [414, 719]]
+    Shelf_B: [[723, 189], [1055, 189], [1055, 548], [723, 548]]
+
+store_interest:
+  # A passer-by shows interest when their attention is visibly directed at the
+  # store:
+  #  (a) LOOKING: the camera sits inside the store looking out, so "looking
+  #      at the store" == "face turned to the camera" (nose + both eyes
+  #      visible, left shoulder on the image right), or
+  #  (b) WINDOW SHOPPING: standing still right in front of the glass while
+  #      not facing away from it.
+  # Walking past (side-on, moving) never qualifies, however close.
+  attention_window_s: 3.0        # sliding window over which evidence is summed
+  min_attention_s: 0.8           # > a passing glance (~0.3-0.5 s), < a stop
+  stationary_speed_bh_s: 0.25    # ~0.4 m/s: standing / shuffling, not walking
+  # Window-shopping must happen within this distance (px, perpendicular to
+  # the entrance line) of the storefront: ~3-4 m of walkway in this view.
+  # People standing further away are across the atrium.
+  storefront_band_px: 110
+  # Entering is the strongest possible evidence of interest, so every
+  # passer-by who enters is counted as interested even if their face was
+  # never clearly visible (e.g. low-res, back to camera at the threshold).
+  entering_implies_interest: true
+
+entry:
+  # Crossing must be decisive to count, otherwise people walking along the
+  # glass and jittering boxes would generate false entries.
+  min_depth_px: 20               # foot point must get this far past the line
+  confirm_s: 1.0                 # ...and stay inside for this long
+  line_extent_margin: 0.10       # allow crossing slightly beyond the ends
+
+shelf_interest:
+  # A customer is interested in a shelf when they are AT it (foot point within
+  # the shelf zone, slightly expanded so people browsing from the aisle are
+  # included), nearly stationary, and their body/head is not turned away from
+  # it - sustained for min_dwell_s.
+  zone_margin_px: 40
+  max_speed_bh_s: 0.35           # ~0.6 m/s; normal walking is ~0.8 bh/s
+  max_facing_angle_deg: 80       # facing vector vs. direction to shelf centre
+  min_dwell_s: 2.0               # a deliberate look, not a walk-past glance
+  # Short breaks (occlusion, picking up a shoe, a turn of the head) do not
+  # split an episode. Absence longer than end_gap_s closes it; coming back
+  # after that is a NEW episode (counted again).
+  max_gap_s: 1.0
+  end_gap_s: 3.0
+
+interaction:
+  # Staff-customer interaction = they are close, both (nearly) stationary and
+  # at least one faces the other, sustained for min_duration_s. Two people
+  # merely passing each other or standing back-to-back do not qualify.
+  max_distance_bh: 1.0           # ~1.6 m incl. talking across the counter
+  max_speed_bh_s: 0.5
+  max_facing_angle_deg: 70
+  min_duration_s: 2.0            # filters brush-pasts / queuing behind
+  # Pauses shorter than this (e.g. staff turns to the till) keep the same
+  # session; longer separations end it and a later re-engagement is a NEW
+  # session.
+  end_gap_s: 4.0
+
+output:
+  write_video: true
+  video_codec: h264              # h264 via ffmpeg when available, else mp4v

@@ -1,0 +1,739 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StoreSight Analytics</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314b8a6'/%3E%3Ccircle cx='16' cy='16' r='7' fill='none' stroke='white' stroke-width='3'/%3E%3Ccircle cx='16' cy='16' r='2.5' fill='white'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg: #0b0e13; --bg2: #10141b; --panel: #141922; --panel2: #1a2029; --line: #232b36; --line2: #2e3845;
+  --ink: #e7ebf0; --ink2: #b3bcc8; --muted: #7d8896;
+  --brand: #14b8a6; --brand-ink: #04201d;
+  --store: #f5b942; --enter: #34d399; --pass: #94a3b8; --shelfA: #e879f9; --shelfB: #a78bfa;
+  --staff: #fb923c; --inter: #38bdf8; --danger: #f87171;
+  --shadow: 0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.25);
+  --r: 12px;
+  color-scheme: dark;
+}
+:root[data-theme="light"] {
+  --bg: #f3f5f8; --bg2: #eceff3; --panel: #ffffff; --panel2: #f7f8fa; --line: #e3e7ec; --line2: #d4dae2;
+  --ink: #111720; --ink2: #3b4553; --muted: #6b7684;
+  --brand: #0d9488; --brand-ink: #ffffff;
+  --store: #c98a0c; --enter: #059669; --pass: #64748b; --shelfA: #c026d3; --shelfB: #7c3aed;
+  --staff: #ea580c; --inter: #0284c7; --danger: #dc2626;
+  --shadow: 0 1px 2px rgba(16,24,40,.06), 0 6px 18px rgba(16,24,40,.06);
+  color-scheme: light;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 13.5px/1.45 Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+       -webkit-font-smoothing: antialiased; min-height: 100vh; }
+button, input { font: inherit; color: inherit; }
+.num { font-variant-numeric: tabular-nums; }
+.muted { color: var(--muted); }
+
+/* ---------- top bar ---------- */
+.top { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 14px; padding: 10px 18px;
+       background: color-mix(in srgb, var(--bg) 85%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-weight: 700; letter-spacing: .2px; }
+.brand small { font-weight: 500; color: var(--muted); margin-left: 2px; }
+.pill { display: inline-flex; align-items: center; gap: 7px; padding: 4px 10px; border-radius: 999px; border: 1px solid var(--line2);
+        background: var(--panel); font-size: 12px; color: var(--ink2); white-space: nowrap; }
+.pill .led { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+.pill.live .led { background: var(--danger); box-shadow: 0 0 0 0 var(--danger); animation: pulse 1.6s infinite; }
+.pill.run .led { background: var(--brand); animation: pulse 1.6s infinite; }
+.pill.done .led { background: var(--enter); }
+@keyframes pulse { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, currentColor 0%, transparent);} 70% { box-shadow: 0 0 0 7px transparent; } }
+.spacer { flex: 1; }
+.iconbtn { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 9px; border: 1px solid var(--line2);
+           background: var(--panel); cursor: pointer; color: var(--ink2); }
+.iconbtn:hover { color: var(--ink); border-color: var(--muted); }
+.iconbtn svg { width: 17px; height: 17px; }
+
+/* ---------- layout ---------- */
+.app { display: grid; grid-template-columns: 300px minmax(0, 1fr) 340px; gap: 16px; padding: 16px 18px 28px; max-width: 1680px; margin: 0 auto; }
+@media (max-width: 1280px) { .app { grid-template-columns: 280px minmax(0,1fr); } .right { grid-column: 1 / -1; display: grid !important; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); } }
+@media (max-width: 860px) { .app { grid-template-columns: 1fr; padding: 12px 16px; } .top .hide-sm { display: none; } }
+.col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--r); box-shadow: var(--shadow); }
+.card > .hd { display: flex; align-items: center; gap: 8px; padding: 12px 14px 0; }
+.card > .hd h3 { margin: 0; font-size: 11.5px; font-weight: 650; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.card > .hd .spacer + * { margin-left: auto; }
+.card > .bd { padding: 12px 14px 14px; }
+
+/* ---------- source panel ---------- */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--bg2); border-radius: 10px; border: 1px solid var(--line); }
+.tabs button { border: 0; background: transparent; padding: 7px; border-radius: 7px; cursor: pointer; color: var(--muted); font-weight: 600; }
+.tabs button.on { background: var(--panel); color: var(--ink); box-shadow: var(--shadow); }
+.drop { margin-top: 12px; border: 1.5px dashed var(--line2); border-radius: 11px; padding: 20px 14px; text-align: center; cursor: pointer;
+        transition: border-color .15s, background .15s; }
+.drop:hover, .drop.over { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 7%, transparent); }
+.drop svg { width: 30px; height: 30px; color: var(--brand); }
+.drop b { display: block; margin: 6px 0 2px; }
+.fileinfo { display: none; margin-top: 12px; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); }
+.fileinfo.show { display: flex; }
+.fileinfo canvas { width: 72px; height: 41px; border-radius: 6px; background: #000; flex: none; object-fit: cover; }
+.fileinfo .meta { min-width: 0; font-size: 12px; }
+.fileinfo .meta b { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 13px; }
+.field { margin-top: 12px; }
+.field input[type=text] { width: 100%; padding: 9px 11px; border-radius: 9px; border: 1px solid var(--line2); background: var(--bg2); outline: none; }
+.field input[type=text]:focus { border-color: var(--brand); }
+.field .hint { font-size: 11.5px; color: var(--muted); margin-top: 5px; }
+.toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; }
+.toggle div { font-size: 12.5px; } .toggle small { display: block; color: var(--muted); font-size: 11.5px; }
+.switch { position: relative; width: 36px; height: 20px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch span { position: absolute; inset: 0; border-radius: 99px; background: var(--line2); cursor: pointer; transition: .2s; }
+.switch span::after { content: ""; position: absolute; width: 14px; height: 14px; left: 3px; top: 3px; border-radius: 50%; background: #fff; transition: .2s; }
+.switch input:checked + span { background: var(--brand); } .switch input:checked + span::after { transform: translateX(16px); }
+.actions { display: flex; gap: 8px; margin-top: 14px; }
+.btn { flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 7px; padding: 9px 12px; border-radius: 10px; border: 1px solid transparent;
+       background: var(--brand); color: var(--brand-ink); font-weight: 650; cursor: pointer; transition: filter .15s, transform .05s; }
+.btn:hover { filter: brightness(1.08); } .btn:active { transform: translateY(1px); }
+#go { flex: 1.6; white-space: nowrap; } #stop { white-space: nowrap; }
+.btn.ghost { background: transparent; color: var(--ink); border-color: var(--line2); }
+.btn:disabled { opacity: .45; cursor: default; filter: none; }
+.btn svg { width: 15px; height: 15px; }
+
+.history { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow: auto; }
+.history li { display: flex; gap: 10px; align-items: center; padding: 8px 9px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; }
+.history li:hover, .history li.on { border-color: var(--brand); background: color-mix(in srgb, var(--brand) 6%, transparent); }
+.history .dot { width: 8px; height: 8px; border-radius: 50%; flex: none; }
+.history .nm { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; font-size: 12.5px; }
+.history small { color: var(--muted); font-size: 11.5px; }
+
+/* ---------- stage ---------- */
+.stage { position: relative; aspect-ratio: 16 / 9; background: #05070a; border-radius: var(--r); overflow: hidden; border: 1px solid var(--line); box-shadow: var(--shadow); }
+.stage img, .stage video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; background: #05070a; }
+.stage .empty { position: absolute; inset: 0; display: grid; place-items: center; text-align: center; color: #8b95a3; padding: 24px;
+                background: radial-gradient(ellipse at center, #121821 0%, #05070a 70%); }
+.stage .empty svg { width: 44px; height: 44px; color: #3b4654; margin-bottom: 8px; }
+.stage .empty b { display: block; color: #cfd6df; font-size: 15px; margin-bottom: 4px; }
+.hud { position: absolute; left: 12px; right: 12px; top: 12px; display: flex; gap: 8px; pointer-events: none; flex-wrap: wrap; }
+.chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 8px; font-size: 12px; font-weight: 600;
+        background: rgba(8,11,16,.68); color: #e8edf3; border: 1px solid rgba(255,255,255,.08); backdrop-filter: blur(6px); }
+.chip.rec .led { width: 7px; height: 7px; border-radius: 50%; background: #ef4444; animation: blink 1.2s infinite; }
+@keyframes blink { 50% { opacity: .25; } }
+.tools { position: absolute; right: 12px; bottom: 12px; display: flex; gap: 6px; opacity: 0; transition: opacity .2s; }
+.stage:hover .tools { opacity: 1; }
+.tools button { width: 32px; height: 32px; border-radius: 8px; border: 1px solid rgba(255,255,255,.1); background: rgba(8,11,16,.7); color: #e8edf3; cursor: pointer; display: grid; place-items: center; }
+.tools svg { width: 16px; height: 16px; }
+.progress { display: flex; align-items: center; gap: 10px; margin-top: 10px; font-size: 12px; color: var(--muted); }
+.progress .track { flex: 1; height: 6px; background: var(--line); border-radius: 99px; overflow: hidden; }
+.progress .fill { height: 100%; width: 0; background: linear-gradient(90deg, var(--brand), color-mix(in srgb, var(--brand) 55%, var(--inter))); transition: width .5s; border-radius: 99px; }
+
+/* ---------- timeline ---------- */
+.tl { position: relative; user-select: none; }
+.tl svg { width: 100%; display: block; }
+.tl .lane-label { font-size: 11px; fill: var(--muted); }
+.tl .mk { cursor: pointer; transition: r .1s; }
+.tl .mk:hover { stroke: var(--ink); stroke-width: 2; }
+.tip { position: fixed; z-index: 50; pointer-events: none; padding: 6px 9px; border-radius: 8px; background: var(--ink); color: var(--bg); font-size: 12px;
+       box-shadow: var(--shadow); opacity: 0; transform: translateY(4px); transition: opacity .12s, transform .12s; max-width: 260px; }
+.tip.show { opacity: 1; transform: none; }
+
+/* ---------- KPIs ---------- */
+.kgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.kpi { padding: 10px 11px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel2); position: relative; overflow: hidden; }
+.kpi .v { font-size: 24px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15; }
+.kpi .l { font-size: 11.5px; color: var(--muted); }
+.kpi .bar { position: absolute; left: 0; top: 0; bottom: 0; width: 3px; }
+.kpi.bump .v { animation: bump .5s; }
+@keyframes bump { 30% { transform: scale(1.12); } }
+.funnel { display: flex; flex-direction: column; gap: 8px; }
+.frow { display: grid; grid-template-columns: 82px 1fr 40px; align-items: center; gap: 8px; font-size: 12px; }
+.frow .t { height: 22px; background: var(--bg2); border-radius: 6px; overflow: hidden; }
+.frow .t div { height: 100%; border-radius: 6px; transition: width .6s cubic-bezier(.2,.8,.2,1); min-width: 2px; }
+.frow b { text-align: right; }
+.conv { display: flex; align-items: baseline; gap: 8px; margin-top: 10px; padding-top: 10px; border-top: 1px dashed var(--line2); }
+.conv .v { font-size: 26px; font-weight: 750; color: var(--enter); }
+.ring { display: flex; align-items: center; gap: 14px; }
+.ring svg { width: 84px; height: 84px; flex: none; transform: rotate(-90deg); }
+.ring circle { fill: none; stroke-width: 9; }
+.staffrow { display: flex; align-items: center; gap: 8px; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: 12.5px; }
+.staffrow:last-child { border-bottom: 0; }
+.staffrow .badge { width: 26px; height: 26px; border-radius: 7px; display: grid; place-items: center; font-weight: 700; font-size: 11px;
+                   background: color-mix(in srgb, var(--staff) 18%, transparent); color: var(--staff); }
+.staffrow .sb { flex: 1; height: 6px; background: var(--bg2); border-radius: 99px; overflow: hidden; }
+.staffrow .sb div { height: 100%; background: var(--staff); border-radius: 99px; transition: width .5s; }
+.spark { width: 100%; height: 54px; display: block; }
+
+/* ---------- feed ---------- */
+.filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.fchip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 9px; border-radius: 99px; border: 1px solid var(--line2); cursor: pointer;
+         font-size: 11.5px; font-weight: 600; color: var(--ink2); background: transparent; }
+.fchip i { width: 7px; height: 7px; border-radius: 50%; }
+.fchip.off { opacity: .4; }
+.fchip .c { color: var(--muted); font-weight: 500; }
+.feed { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow: auto; }
+.feed li { display: grid; grid-template-columns: 52px 1fr; gap: 8px; padding: 7px 6px; border-radius: 8px; cursor: pointer; animation: slidein .35s ease; }
+.feed li:hover { background: var(--panel2); }
+.feed time { color: var(--muted); font-size: 12px; padding-top: 1px; }
+.feed .ev { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; }
+.feed .ev i { width: 8px; height: 8px; border-radius: 50%; margin-top: 5px; flex: none; }
+.feed .empty { cursor: default; color: var(--muted); display: block; text-align: center; padding: 22px 0; }
+@keyframes slidein { from { opacity: 0; transform: translateY(-4px); } }
+
+/* ---------- results ---------- */
+.dl { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.dl a { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border-radius: 9px; border: 1px solid var(--line); text-decoration: none; color: var(--ink); font-size: 12.5px; font-weight: 600; }
+.dl a:hover { border-color: var(--brand); }
+.dl a svg { width: 16px; height: 16px; color: var(--brand); flex: none; }
+.dl a small { display: block; color: var(--muted); font-weight: 500; font-size: 11px; }
+table.csv { width: 100%; border-collapse: collapse; margin-top: 12px; font-size: 12px; }
+table.csv th { text-align: left; color: var(--muted); font-weight: 600; padding: 6px 6px; border-bottom: 1px solid var(--line2); white-space: nowrap; }
+table.csv td { padding: 6px; border-bottom: 1px solid var(--line); }
+.tablewrap { overflow-x: auto; }
+
+/* ---------- toasts & dialogs ---------- */
+.toasts { position: fixed; right: 18px; bottom: 18px; z-index: 60; display: flex; flex-direction: column; gap: 8px; align-items: flex-end; }
+.toast { display: flex; gap: 10px; align-items: center; padding: 9px 12px; border-radius: 10px; background: var(--panel); border: 1px solid var(--line2);
+         box-shadow: var(--shadow); font-size: 12.5px; animation: tin .25s ease; max-width: 340px; }
+.toast i { width: 9px; height: 9px; border-radius: 50%; flex: none; }
+.toast.out { animation: tout .25s ease forwards; }
+@keyframes tin { from { opacity: 0; transform: translateY(8px); } } @keyframes tout { to { opacity: 0; transform: translateX(20px); } }
+dialog { border: 1px solid var(--line2); border-radius: 14px; background: var(--panel); color: var(--ink); padding: 0; width: min(520px, calc(100vw - 32px)); box-shadow: var(--shadow); }
+dialog::backdrop { background: rgba(0,0,0,.5); backdrop-filter: blur(2px); }
+dialog .bd { padding: 18px 20px; }
+dialog h2 { margin: 0 0 10px; font-size: 16px; }
+dialog dl { display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; margin: 0; font-size: 13px; }
+dialog dt { font-weight: 600; } dialog dd { margin: 0; color: var(--ink2); }
+kbd { font: 600 11px ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 6px; border-radius: 5px; border: 1px solid var(--line2); background: var(--bg2); }
+.legend { display: flex; flex-wrap: wrap; gap: 10px; font-size: 11.5px; color: var(--muted); margin-top: 8px; }
+.legend span { display: inline-flex; align-items: center; gap: 5px; }
+.legend i { width: 9px; height: 9px; border-radius: 3px; }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="brand">
+    <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect width="32" height="32" rx="8" fill="var(--brand)"/><circle cx="16" cy="16" r="7" fill="none" stroke="#fff" stroke-width="3"/><circle cx="16" cy="16" r="2.5" fill="#fff"/></svg>
+    StoreSight <small class="hide-sm">Behavioural Analytics</small>
+  </div>
+  <span class="pill" id="statePill"><span class="led"></span><span id="stateText">Idle</span></span>
+  <span class="pill hide-sm num" id="fpsPill" title="Analysed frames per second">– fps</span>
+  <div class="spacer"></div>
+  <span class="pill hide-sm" title="Inference runs on this machine; footage never leaves it">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg> On-device
+  </span>
+  <button class="iconbtn" id="helpBtn" title="Keyboard shortcuts & definitions (?)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg></button>
+  <button class="iconbtn" id="themeBtn" title="Toggle theme (T)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+</header>
+
+<div class="app">
+  <!-- ======== left ======== -->
+  <aside class="col">
+    <section class="card">
+      <div class="hd"><h3>Source</h3></div>
+      <div class="bd">
+        <div class="tabs" role="tablist">
+          <button class="on" data-tab="file" role="tab">Video file</button>
+          <button data-tab="cam" role="tab">Live camera</button>
+        </div>
+        <div id="tab-file">
+          <div class="drop" id="drop" tabindex="0">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 16V4m0 0-4 4m4-4 4 4"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+            <b>Drop CCTV footage</b>
+            <span class="muted">or click to browse · mp4, mov, avi</span>
+            <input id="file" type="file" accept="video/*" hidden>
+          </div>
+          <div class="fileinfo" id="fileinfo">
+            <canvas id="thumb" width="160" height="90"></canvas>
+            <div class="meta"><b id="fname"></b><span class="muted" id="fmeta"></span></div>
+          </div>
+        </div>
+        <div id="tab-cam" hidden>
+          <div class="field">
+            <input id="src" type="text" placeholder="rtsp://user:pass@192.168.1.20/stream">
+            <div class="hint">RTSP / HTTP stream, a server-side file path, or <kbd>0</kbd> for a webcam.</div>
+          </div>
+        </div>
+        <label class="toggle">
+          <div>Real-time pacing<small>Play files at camera speed; drop frames if behind</small></div>
+          <span class="switch"><input id="live" type="checkbox"><span></span></span>
+        </label>
+        <div class="actions">
+          <button class="btn" id="go"><svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>Analyse</button>
+          <button class="btn ghost" id="stop" disabled title="Stop (S)"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>Stop</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h3>Sessions</h3><div class="spacer"></div><button class="iconbtn" id="refreshHist" title="Refresh" style="width:28px;height:28px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg></button></div>
+      <div class="bd"><ul class="history" id="history"><li class="muted" style="cursor:default;border-style:dashed">No sessions yet</li></ul></div>
+    </section>
+  </aside>
+
+  <!-- ======== centre ======== -->
+  <main class="col">
+    <div>
+      <div class="stage" id="stage">
+        <div class="empty" id="empty">
+          <div>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M15 10l4.5-2.5v9L15 14"/><rect x="3" y="6" width="12" height="12" rx="2"/></svg>
+            <b>No feed yet</b>
+            <span>Load footage or connect a camera. The annotated stream appears here frame by frame.</span>
+          </div>
+        </div>
+        <div class="hud" id="hud" hidden>
+          <span class="chip rec" id="recChip"><span class="led"></span><span id="recText">ANALYSING</span></span>
+          <span class="chip num" id="timeChip">0:00.0</span>
+          <span class="chip num" id="peopleChip">0 in view</span>
+        </div>
+        <div class="tools">
+          <button id="snapBtn" title="Save snapshot (P)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg></button>
+          <button id="fsBtn" title="Fullscreen (F)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+        </div>
+      </div>
+      <div class="progress"><span id="pName" class="muted" style="max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</span>
+        <div class="track"><div class="fill" id="pFill"></div></div><span class="num" id="pText">0%</span></div>
+    </div>
+
+    <section class="card">
+      <div class="hd"><h3>Event timeline</h3><div class="spacer"></div><span class="muted" id="tlHint" style="font-size:12px">Click a marker to jump there once the run finishes</span></div>
+      <div class="bd"><div class="tl" id="tl"></div></div>
+    </section>
+
+    <section class="card" id="results" hidden>
+      <div class="hd"><h3>Results</h3></div>
+      <div class="bd">
+        <div class="dl" id="dl"></div>
+        <div class="tablewrap" id="csvVideo"></div>
+        <div class="tablewrap" id="csvShelf"></div>
+      </div>
+    </section>
+  </main>
+
+  <!-- ======== right ======== -->
+  <aside class="col right">
+    <section class="card">
+      <div class="hd"><h3>Store conversion</h3></div>
+      <div class="bd">
+        <div class="funnel">
+          <div class="frow"><span>Interested</span><div class="t"><div id="fInt" style="width:0;background:var(--store)"></div></div><b class="num" id="vInt">0</b></div>
+          <div class="frow"><span>Entered</span><div class="t"><div id="fEnt" style="width:0;background:var(--enter)"></div></div><b class="num" id="vEnt">0</b></div>
+          <div class="frow"><span>Passed by</span><div class="t"><div id="fPas" style="width:0;background:var(--pass)"></div></div><b class="num" id="vPas">0</b></div>
+        </div>
+        <div class="conv"><span class="v num" id="convV">–</span><span class="muted">of interested passers-by walked in</span></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h3>Shelf interest</h3></div>
+      <div class="bd">
+        <div class="kgrid">
+          <div class="kpi" id="kA"><span class="bar" style="background:var(--shelfA)"></span><div class="v num" id="vA">0</div><div class="l">Shelf A episodes</div></div>
+          <div class="kpi" id="kB"><span class="bar" style="background:var(--shelfB)"></span><div class="v num" id="vB">0</div><div class="l">Shelf B episodes</div></div>
+        </div>
+        <div class="frow" style="margin-top:10px;grid-template-columns:1fr"><div class="t" style="height:10px;display:flex"><div id="shA" style="width:50%;background:var(--shelfA);border-radius:6px 0 0 6px"></div><div id="shB" style="width:50%;background:var(--shelfB);border-radius:0 6px 6px 0"></div></div></div>
+        <div class="muted" style="font-size:11.5px;margin-top:5px" id="shSplit">Share of shelf attention</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h3>Staff &amp; service</h3></div>
+      <div class="bd">
+        <div class="ring">
+          <svg viewBox="0 0 84 84"><circle cx="42" cy="42" r="34" stroke="var(--line)"/><circle id="ringArc" cx="42" cy="42" r="34" stroke="var(--staff)" stroke-linecap="round" stroke-dasharray="0 214" style="transition:stroke-dasharray .6s;opacity:0"/></svg>
+          <div>
+            <div class="num" style="font-size:26px;font-weight:750" id="vAvg">0.00</div>
+            <div class="muted" style="font-size:12px">avg. sessions per staff</div>
+            <div style="font-size:12px;margin-top:4px"><b class="num" id="vStaff">0</b> staff · <b class="num" id="vSes">0</b> sessions</div>
+          </div>
+        </div>
+        <div id="staffList" style="margin-top:10px"></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h3>Occupancy</h3><div class="spacer"></div><span class="num muted" id="occNow" style="font-size:12px">–</span></div>
+      <div class="bd"><svg class="spark" id="spark" viewBox="0 0 300 54" preserveAspectRatio="none"></svg></div>
+    </section>
+
+    <section class="card">
+      <div class="hd"><h3>Activity</h3><div class="spacer"></div><span class="muted num" id="evCount" style="font-size:12px">0 events</span></div>
+      <div class="bd">
+        <div class="filters" id="filters"></div>
+        <ul class="feed" id="feed"><li class="empty">Events appear here the moment they are confirmed.</li></ul>
+      </div>
+    </section>
+  </aside>
+</div>
+
+<div class="toasts" id="toasts"></div>
+<div class="tip" id="tip"></div>
+
+<dialog id="help">
+  <div class="bd">
+    <h2>How StoreSight measures behaviour</h2>
+    <dl>
+      <dt style="color:var(--store)">Store interest</dt><dd>A passer-by faces the store (face turned to the in-store camera) or stops at the glass for ≥ 0.8 s of a 3 s window. Anyone who walks in counts too.</dd>
+      <dt style="color:var(--enter)">Entered</dt><dd>Crosses the entrance line, goes ≥ 20 px past it and stays inside 1 s.</dd>
+      <dt style="color:var(--shelfA)">Shelf interest</dt><dd>A customer at the shelf, nearly still and not turned away, for 2 s. One episode per visit; returning after 3 s away is a new one.</dd>
+      <dt style="color:var(--staff)">Interaction</dt><dd>Staff and customer within ~1.6 m, both still, one facing the other, for 2 s. Pauses up to 4 s keep the same session.</dd>
+    </dl>
+    <h2 style="margin-top:16px">Shortcuts</h2>
+    <dl>
+      <dt><kbd>Space</kbd></dt><dd>Play / pause the result video</dd>
+      <dt><kbd>F</kbd></dt><dd>Fullscreen video</dd>
+      <dt><kbd>P</kbd></dt><dd>Save a snapshot</dd>
+      <dt><kbd>S</kbd></dt><dd>Stop the current analysis</dd>
+      <dt><kbd>T</kbd></dt><dd>Toggle light / dark theme</dd>
+      <dt><kbd>?</kbd></dt><dd>This panel</dd>
+    </dl>
+    <div class="actions" style="justify-content:flex-end"><button class="btn" style="flex:0 0 auto" onclick="this.closest('dialog').close()">Got it</button></div>
+  </div>
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+const TYPES = {
+  store_interest: { label: 'Store interest', color: 'var(--store)' },
+  store_entered:  { label: 'Entered',        color: 'var(--enter)' },
+  shelf_A:        { label: 'Shelf A',        color: 'var(--shelfA)' },
+  shelf_B:        { label: 'Shelf B',        color: 'var(--shelfB)' },
+  interaction:    { label: 'Interaction',    color: 'var(--inter)' },
+};
+const LANES = ['store_interest', 'store_entered', 'shelf_A', 'shelf_B', 'interaction'];
+const state = { job: null, es: null, picked: null, events: [], occ: [], filters: new Set(LANES), duration: 0, lastT: 0, prev: {}, finished: false };
+
+const kind = e => e.type === 'shelf_interest' ? (e.shelf === 'Shelf_B' ? 'shelf_B' : 'shelf_A') : e.type;
+const fmt = t => { t = Math.max(0, t || 0); const m = Math.floor(t / 60); return `${m}:${(t % 60).toFixed(1).padStart(4, '0')}`; };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+function describe(e) {
+  switch (e.type) {
+    case 'store_interest': return `Visitor #${e.gid} showed interest in the store` + (e.reason === 'entered' ? ' and walked in' : '');
+    case 'store_entered': return `Visitor #${e.gid} entered the store`;
+    case 'shelf_interest': return `Customer #${e.gid} browsing ${e.shelf.replace('_', ' ')}`;
+    case 'interaction': return `Staff–customer session (#${e.pair[0]} ↔ #${e.pair[1]})`;
+  }
+  return e.type;
+}
+
+/* ---------------- theme ---------------- */
+function setTheme(t) { document.documentElement.dataset.theme = t; try { localStorage.setItem('ss-theme', t); } catch (e) {} drawTimeline(); drawSpark(); }
+try { const t = localStorage.getItem('ss-theme'); if (t) document.documentElement.dataset.theme = t; } catch (e) {}
+$('themeBtn').onclick = () => setTheme(document.documentElement.dataset.theme === 'light' ? 'dark' : 'light');
+$('helpBtn').onclick = () => $('help').showModal();
+
+/* ---------------- source ---------------- */
+document.querySelectorAll('.tabs button').forEach(b => b.onclick = () => {
+  document.querySelectorAll('.tabs button').forEach(x => x.classList.toggle('on', x === b));
+  $('tab-file').hidden = b.dataset.tab !== 'file'; $('tab-cam').hidden = b.dataset.tab !== 'cam';
+  if (b.dataset.tab === 'cam') $('src').focus();
+});
+const drop = $('drop');
+drop.onclick = () => $('file').click();
+drop.onkeydown = e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); $('file').click(); } };
+$('file').onchange = e => pick(e.target.files[0]);
+['dragover', 'dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => pick(e.dataTransfer.files[0]));
+
+function pick(f) {
+  if (!f) return;
+  state.picked = f;
+  $('fileinfo').classList.add('show');
+  $('fname').textContent = f.name;
+  $('fmeta').textContent = `${(f.size / 1048576).toFixed(1)} MB`;
+  // Read duration/resolution and a poster frame locally - nothing is uploaded yet.
+  const v = document.createElement('video'); v.muted = true; v.preload = 'metadata'; v.src = URL.createObjectURL(f);
+  v.onloadedmetadata = () => {
+    $('fmeta').textContent = `${(f.size / 1048576).toFixed(1)} MB · ${v.videoWidth}×${v.videoHeight} · ${fmt(v.duration).replace(/\.\d$/, '')}`;
+    v.currentTime = Math.min(5, v.duration / 3);
+  };
+  v.onseeked = () => { $('thumb').getContext('2d').drawImage(v, 0, 0, 160, 90); URL.revokeObjectURL(v.src); };
+}
+
+$('go').onclick = start;
+$('stop').onclick = () => state.job && fetch(`/api/jobs/${state.job.id}/stop`, { method: 'POST' });
+
+function start() {
+  const camTab = !$('tab-cam').hidden;
+  const fd = new FormData();
+  if (!camTab && state.picked) fd.append('file', state.picked);
+  else if (camTab && $('src').value.trim()) fd.append('source', $('src').value.trim());
+  else { toast(camTab ? 'Enter a camera or stream URL first.' : 'Choose a video file first.', 'var(--danger)'); return; }
+  fd.append('live', $('live').checked);
+  $('go').disabled = true;
+  setState('Uploading', 'run');
+  $('pName').textContent = camTab ? $('src').value.trim() : state.picked.name;
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', '/api/jobs');
+  xhr.upload.onprogress = e => { if (e.lengthComputable) setProgress(e.loaded / e.total, `Uploading ${Math.round(100 * e.loaded / e.total)}%`); };
+  xhr.onload = () => {
+    if (xhr.status !== 200) { toast('Could not start: ' + xhr.responseText, 'var(--danger)'); $('go').disabled = false; setState('Idle'); return; }
+    attach(JSON.parse(xhr.responseText), true);
+    loadHistory();
+  };
+  xhr.onerror = () => { toast('Upload failed.', 'var(--danger)'); $('go').disabled = false; setState('Idle'); };
+  xhr.send(fd);
+}
+
+/* ---------------- job lifecycle ---------------- */
+function reset() {
+  state.events = []; state.occ = []; state.prev = {}; state.finished = false; state.lastT = 0; state.duration = 0;
+  $('feed').innerHTML = '<li class="empty">Events appear here the moment they are confirmed.</li>';
+  $('results').hidden = true; $('csvVideo').innerHTML = ''; $('csvShelf').innerHTML = '';
+  renderFilters(); drawTimeline(); drawSpark();
+}
+
+function attach(job, liveView) {
+  if (state.es) state.es.close();
+  state.job = job; reset();
+  $('pName').textContent = job.name;
+  document.querySelectorAll('#history li').forEach(li => li.classList.toggle('on', li.dataset.id === job.id));
+  if (liveView && !['done', 'stopped', 'error'].includes(job.status)) {
+    $('empty').hidden = true; $('hud').hidden = false;
+    setStage(`<img id="feedImg" src="/api/jobs/${job.id}/stream" alt="Annotated live feed">`);
+    $('stop').disabled = false;
+    state.es = new EventSource(`/api/jobs/${job.id}/events`);
+    state.es.onmessage = m => update(JSON.parse(m.data), true);
+  } else {
+    update(job, false);
+    loadEventLog(job);
+  }
+}
+
+function setStage(html) {
+  const st = $('stage');
+  st.querySelectorAll('img, video').forEach(n => n.remove());
+  st.insertAdjacentHTML('afterbegin', html);
+}
+
+function update(s, streaming) {
+  const m = s.metrics || {};
+  state.duration = s.duration || state.duration;
+  if (m.video_id !== undefined) renderMetrics(m, streaming);
+  const label = { queued: 'Queued', running: s.live ? 'Live' : 'Analysing', done: 'Complete', stopped: 'Stopped', error: 'Error' }[s.status] || s.status;
+  setState(label, s.status === 'running' ? (s.live ? 'live' : 'run') : s.status === 'done' ? 'done' : '');
+  $('recText').textContent = s.status === 'running' ? (s.live ? 'LIVE' : 'ANALYSING') : label.toUpperCase();
+  if (s.duration) setProgress(s.progress || 0, `${Math.round(100 * (s.progress || 0))}%`);
+  else if (m.t !== undefined) setProgress(0, fmt(m.t));
+  for (const e of s.events || []) addEvent(e, streaming);
+  if (s.status === 'error') toast(s.error, 'var(--danger)');
+  if (['done', 'stopped', 'error'].includes(s.status) && !state.finished) finish(s);
+}
+
+function finish(s) {
+  state.finished = true;
+  if (state.es) state.es.close();
+  $('go').disabled = false; $('stop').disabled = true; state.picked = null;
+  $('fileinfo').classList.remove('show');
+  if (s.status === 'error') return;
+  $('hud').hidden = true; $('empty').hidden = true;
+  setStage(`<video id="resultVid" src="/api/jobs/${s.id}/files/annotated.mp4" controls playsinline></video>`);
+  $('tlHint').textContent = 'Click a marker to jump to that moment';
+  $('results').hidden = false;
+  const files = [['video_metrics.csv', 'Store & staff KPIs'], ['shelf_metrics.csv', 'Per-shelf episodes'], ['annotated.mp4', 'Annotated video'], ['events.jsonl', 'Timestamped event log']];
+  $('dl').innerHTML = files.map(([f, d]) => `<a href="/api/jobs/${s.id}/files/${f}" download><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 4v12m0 0-4-4m4 4 4-4"/><path d="M4 20h16"/></svg><span>${f}<small>${d}</small></span></a>`).join('');
+  csvTable('video_metrics.csv', $('csvVideo')); csvTable('shelf_metrics.csv', $('csvShelf'));
+  if (s.status === 'done') toast('Analysis complete — results ready', 'var(--enter)');
+  drawSpark();
+  loadHistory();
+}
+
+async function csvTable(name, el) {
+  try {
+    const r = await fetch(`/api/jobs/${state.job.id}/files/${name}`); if (!r.ok) return;
+    const rows = (await r.text()).trim().split('\n').map(l => l.split(','));
+    el.innerHTML = `<table class="csv num"><thead><tr>${rows[0].map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>${rows.slice(1).map(r => `<tr>${r.map(c => `<td>${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+  } catch (e) {}
+}
+
+async function loadEventLog(job) {
+  try {
+    const r = await fetch(`/api/jobs/${job.id}/files/events.jsonl`); if (!r.ok) return;
+    (await r.text()).trim().split('\n').filter(Boolean).forEach(l => addEvent(JSON.parse(l), false));
+  } catch (e) {}
+}
+
+/* ---------------- metrics rendering ---------------- */
+function bump(id, val) {
+  const el = $(id); if (el.textContent !== String(val)) { el.textContent = val; const k = el.closest('.kpi'); if (k) { k.classList.remove('bump'); void k.offsetWidth; k.classList.add('bump'); } }
+}
+function renderMetrics(m, streaming) {
+  const I = m.store_interest_count, E = m.entered_count, P = m.passed_count, max = Math.max(I, 1);
+  $('vInt').textContent = I; $('vEnt').textContent = E; $('vPas').textContent = P;
+  $('fInt').style.width = (I ? 100 : 0) + '%'; $('fEnt').style.width = (100 * E / max) + '%'; $('fPas').style.width = (100 * P / max) + '%';
+  $('convV').textContent = I ? Math.round(100 * E / I) + '%' : '–';
+
+  const A = m.shelves?.Shelf_A ?? 0, B = m.shelves?.Shelf_B ?? 0;
+  bump('vA', A); bump('vB', B);
+  const tot = A + B;
+  $('shA').style.width = (tot ? 100 * A / tot : 50) + '%'; $('shB').style.width = (tot ? 100 * B / tot : 50) + '%';
+  $('shSplit').textContent = tot ? `Shelf A ${Math.round(100 * A / tot)}% · Shelf B ${Math.round(100 * B / tot)}% of shelf attention` : 'Share of shelf attention';
+
+  const avg = Number(m.avg_customer_interactions_per_staff || 0);
+  $('vAvg').textContent = avg.toFixed(2); $('vStaff').textContent = m.staff_instances; $('vSes').textContent = m.interaction_sessions;
+  const per = Object.entries(m.per_staff || {}); const pmax = Math.max(1, ...per.map(p => p[1]));
+  const frac = Math.min(1, avg / Math.max(pmax, 1));
+  $('ringArc').setAttribute('stroke-dasharray', `${frac * 213.6} 214`);
+  $('ringArc').style.opacity = frac > 0 ? 1 : 0;
+  $('staffList').innerHTML = per.length ? per.map(([id, n], i) =>
+    `<div class="staffrow"><span class="badge">S${i + 1}</span><span style="min-width:62px">Staff #${esc(id)}</span><div class="sb"><div style="width:${100 * n / pmax}%"></div></div><b class="num">${n}</b></div>`).join('')
+    : '<div class="muted" style="font-size:12px">No staff identified yet.</div>';
+
+  $('fpsPill').textContent = `${m.fps} fps`;
+  $('timeChip').textContent = fmt(m.t); $('peopleChip').textContent = `${m.people_now} in view`;
+  $('occNow').textContent = `${m.people_now} now · peak ${Math.max(m.people_now, ...state.occ.map(o => o[1]))}`;
+  if (streaming && m.t > state.lastT) { state.occ.push([m.t, m.people_now]); state.lastT = m.t; drawSpark(); drawTimeline(); }
+}
+
+function drawSpark() {
+  const svg = $('spark'), d = state.occ;
+  if (d.length < 2) { svg.innerHTML = `<text x="150" y="30" text-anchor="middle" font-size="11" fill="var(--muted)">${state.finished ? 'recorded only while watching live' : 'people in view over time'}</text>`; return; }
+  const t0 = d[0][0], t1 = d[d.length - 1][0] || 1, ymax = Math.max(4, ...d.map(p => p[1]));
+  const pts = d.map(([t, n]) => [300 * (t - t0) / Math.max(t1 - t0, 1), 50 - 44 * n / ymax]);
+  const line = pts.map((p, i) => (i ? 'L' : 'M') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join(' ');
+  svg.innerHTML = `<defs><linearGradient id="sg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="var(--brand)" stop-opacity=".35"/><stop offset="1" stop-color="var(--brand)" stop-opacity="0"/></linearGradient></defs>
+    <path d="${line} L300 54 L0 54Z" fill="url(#sg)"/><path d="${line}" fill="none" stroke="var(--brand)" stroke-width="1.6" vector-effect="non-scaling-stroke"/>`;
+}
+
+/* ---------------- events ---------------- */
+function addEvent(e, streaming) {
+  state.events.push(e);
+  const k = kind(e);
+  $('evCount').textContent = `${state.events.length} event${state.events.length === 1 ? '' : 's'}`;
+  renderFilters();
+  if (state.filters.has(k)) prependFeed(e);
+  drawTimeline();
+  if (streaming && e.type !== 'store_entered') toast(describe(e), TYPES[k].color);
+}
+function prependFeed(e) {
+  const feed = $('feed'); const empty = feed.querySelector('.empty'); if (empty) empty.remove();
+  const li = document.createElement('li');
+  li.innerHTML = `<time class="num">${fmt(e.t)}</time><span class="ev"><i style="background:${TYPES[kind(e)].color}"></i><span>${esc(describe(e))}</span></span>`;
+  li.onclick = () => seek(e.t);
+  feed.prepend(li);
+}
+function renderFeed() {
+  $('feed').innerHTML = '';
+  const evs = state.events.filter(e => state.filters.has(kind(e)));
+  if (!evs.length) $('feed').innerHTML = '<li class="empty">No events for the selected filters.</li>';
+  evs.forEach(prependFeed);
+}
+function renderFilters() {
+  const counts = {}; state.events.forEach(e => counts[kind(e)] = (counts[kind(e)] || 0) + 1);
+  $('filters').innerHTML = LANES.map(k => `<button class="fchip ${state.filters.has(k) ? '' : 'off'}" data-k="${k}"><i style="background:${TYPES[k].color}"></i>${TYPES[k].label}<span class="c num">${counts[k] || 0}</span></button>`).join('');
+  $('filters').querySelectorAll('.fchip').forEach(b => b.onclick = () => {
+    const k = b.dataset.k; state.filters.has(k) ? state.filters.delete(k) : state.filters.add(k);
+    renderFilters(); renderFeed(); drawTimeline();
+  });
+}
+
+/* ---------------- timeline ---------------- */
+function drawTimeline() {
+  const el = $('tl'), W = Math.max(el.clientWidth, 300), lh = 24, left = 92, H = LANES.length * lh + 26;
+  const end = Math.max(state.duration, state.lastT, ...state.events.map(e => e.t), 10);
+  const x = t => left + (W - left - 10) * t / end;
+  let s = `<svg viewBox="0 0 ${W} ${H}" height="${H}">`;
+  LANES.forEach((k, i) => {
+    const y = i * lh + 12, on = state.filters.has(k);
+    s += `<text class="lane-label" x="0" y="${y + 4}" opacity="${on ? 1 : .4}">${TYPES[k].label}</text>`;
+    s += `<line x1="${left}" x2="${W - 10}" y1="${y}" y2="${y}" stroke="var(--line)" stroke-width="1"/>`;
+  });
+  const ticks = 6;
+  for (let i = 0; i <= ticks; i++) {
+    const t = end * i / ticks;
+    s += `<text class="lane-label" x="${x(t)}" y="${H - 4}" text-anchor="middle">${fmt(t).replace(/\.\d$/, '')}</text>`;
+  }
+  if (state.lastT && !state.finished) s += `<line x1="${x(state.lastT)}" x2="${x(state.lastT)}" y1="2" y2="${H - 16}" stroke="var(--brand)" stroke-dasharray="3 3"/>`;
+  state.events.forEach((e, idx) => {
+    const k = kind(e); if (!state.filters.has(k)) return;
+    const i = LANES.indexOf(k), y = i * lh + 12;
+    if (e.start !== undefined && e.t - e.start > 0.2)
+      s += `<line x1="${x(e.start)}" x2="${x(e.t)}" y1="${y}" y2="${y}" stroke="${TYPES[k].color}" stroke-width="4" stroke-linecap="round" opacity=".45"/>`;
+    s += `<circle class="mk" data-i="${idx}" cx="${x(e.t)}" cy="${y}" r="5" fill="${TYPES[k].color}"/>`;
+  });
+  el.innerHTML = s + '</svg>';
+  el.querySelectorAll('.mk').forEach(c => {
+    const e = state.events[+c.dataset.i];
+    c.onmouseenter = ev => showTip(ev, `<b>${fmt(e.t)}</b><br>${esc(describe(e))}`);
+    c.onmousemove = ev => moveTip(ev); c.onmouseleave = hideTip; c.onclick = () => seek(e.t);
+  });
+}
+window.addEventListener('resize', drawTimeline);
+
+function seek(t) {
+  const v = $('resultVid');
+  if (!v) { toast('Jump-to-moment is available once the run finishes', 'var(--muted)'); return; }
+  // Episodes are confirmed after they start; rewind a little to show the lead-up.
+  v.currentTime = Math.max(0, t - 3); v.play();
+  $('stage').scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+/* ---------------- history ---------------- */
+async function loadHistory() {
+  try {
+    const jobs = await (await fetch('/api/jobs')).json();
+    if (!jobs.length) return;
+    const col = { done: 'var(--enter)', running: 'var(--brand)', queued: 'var(--store)', stopped: 'var(--pass)', error: 'var(--danger)' };
+    $('history').innerHTML = jobs.map(j => {
+      const m = j.metrics || {};
+      const sub = m.video_id !== undefined ? `${m.store_interest_count} interested · ${(m.shelves?.Shelf_A ?? 0) + (m.shelves?.Shelf_B ?? 0)} shelf · ${m.interaction_sessions} sessions` : j.status;
+      return `<li data-id="${j.id}" class="${state.job && state.job.id === j.id ? 'on' : ''}"><span class="dot" style="background:${col[j.status] || 'var(--muted)'}"></span><div style="min-width:0;flex:1"><div class="nm">${esc(j.name)}</div><small>${new Date(j.started * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} · ${esc(sub)}</small></div></li>`;
+    }).join('');
+    $('history').querySelectorAll('li').forEach(li => li.onclick = async () => {
+      if (state.job && li.dataset.id === state.job.id) return;
+      const j = await (await fetch(`/api/jobs/${li.dataset.id}`)).json();
+      attach(j, true);
+    });
+  } catch (e) {}
+}
+$('refreshHist').onclick = loadHistory;
+
+/* ---------------- chrome ---------------- */
+function setState(text, cls = '') { $('stateText').textContent = text; $('statePill').className = 'pill ' + cls; }
+function setProgress(f, text) { $('pFill').style.width = (100 * f) + '%'; $('pText').textContent = text; }
+let toastBudget = 0;
+function toast(msg, color = 'var(--brand)') {
+  const now = Date.now(); if (now < toastBudget) return; toastBudget = now + 350;   // never flood the screen
+  const box = $('toasts'); while (box.children.length >= 4) box.firstChild.remove();
+  const t = document.createElement('div'); t.className = 'toast'; t.innerHTML = `<i style="background:${color}"></i><span>${esc(msg)}</span>`;
+  box.appendChild(t); setTimeout(() => { t.classList.add('out'); setTimeout(() => t.remove(), 260); }, 3600);
+}
+const tip = $('tip');
+function showTip(ev, html) { tip.innerHTML = html; tip.classList.add('show'); moveTip(ev); }
+function moveTip(ev) { tip.style.left = Math.min(ev.clientX + 12, innerWidth - 270) + 'px'; tip.style.top = (ev.clientY + 14) + 'px'; }
+function hideTip() { tip.classList.remove('show'); }
+
+function snapshot() {
+  const src = $('resultVid') || $('feedImg'); if (!src) return;
+  const w = src.videoWidth || src.naturalWidth, h = src.videoHeight || src.naturalHeight; if (!w) return;
+  const c = document.createElement('canvas'); c.width = w; c.height = h; c.getContext('2d').drawImage(src, 0, 0, w, h);
+  const a = document.createElement('a'); a.download = `storesight_${(state.job?.name || 'frame').replace(/\W+/g, '_')}_${Date.now()}.png`;
+  a.href = c.toDataURL('image/png'); a.click(); toast('Snapshot saved');
+}
+$('snapBtn').onclick = snapshot;
+$('fsBtn').onclick = () => document.fullscreenElement ? document.exitFullscreen() : $('stage').requestFullscreen?.();
+
+document.addEventListener('keydown', e => {
+  if (e.target.matches('input, textarea') || e.metaKey || e.ctrlKey || e.altKey) return;
+  const k = e.key.toLowerCase();
+  if (k === 'f') $('fsBtn').click();
+  else if (k === 'p') snapshot();
+  else if (k === 's' && !$('stop').disabled) $('stop').click();
+  else if (k === 't') $('themeBtn').click();
+  else if (e.key === '?') $('help').showModal();
+  else if (k === ' ' && $('resultVid')) { e.preventDefault(); const v = $('resultVid'); v.paused ? v.play() : v.pause(); }
+});
+
+renderFilters(); drawTimeline(); drawSpark();
+// Re-attach after a page refresh: ?job=<id> or whatever is currently running.
+(async () => {
+  await loadHistory();
+  try {
+    const want = new URLSearchParams(location.search).get('job');
+    const jobs = await (await fetch('/api/jobs')).json();
+    const j = jobs.find(x => x.id === want) || jobs.find(x => x.status === 'running' || x.status === 'queued');
+    if (j) { $('go').disabled = j.status === 'running' || j.status === 'queued'; attach(j, true); }
+  } catch (e) {}
+})();
+</script>
+</body>
+</html>
