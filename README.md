@@ -1,4 +1,9 @@
-# Retail Behavioural Analytics
+# StoreSight: Retail Behavioural Analytics
+
+<p align="center">
+  <img src="docs/demo.gif" alt="StoreSight dashboard analysing CCTV footage live: annotated feed, conversion funnel, event timeline and staff metrics" width="100%">
+</p>
+<p align="center"><b><a href="docs/demo.mp4">▶ Watch the full-quality demo (MP4, 66 s)</a></b> · Live analysis shown at 2× speed · faces pixelated with the built-in privacy mode</p>
 
 Real-time, single-pass video analytics for retail CCTV. From one fixed camera overlooking the storefront and the interior, it measures:
 
@@ -8,7 +13,7 @@ Real-time, single-pass video analytics for retail CCTV. From one fixed camera ov
 
 Every frame is processed once, in order, and never revisited, so the same code serves an uploaded video and a live RTSP camera. Results appear while the video plays. All inference runs locally on public pretrained weights.
 
-> **Footage and privacy.** No CCTV footage, people images or analysis outputs are included in this repository. Put your own videos in `Input_Video/` (git-ignored).
+> **Footage and privacy.** No raw CCTV footage, people images or analysis outputs are included in this repository; the demo above has every tracked person's head pixelated. Put your own videos in `Input_Video/` (git-ignored). Set `privacy.blur_faces: true` (or pass `--blur-faces`) to pixelate heads in your own annotated output.
 
 ---
 
@@ -87,6 +92,7 @@ Useful options:
 ```bash
 python -W ignore -m src.run Input_Video/sample1.mp4 --video-id video_01   # custom id in the CSV
 python -W ignore -m src.run Input_Video/sample1.mp4 --no-video            # metrics only
+python -W ignore -m src.run Input_Video/sample1.mp4 --blur-faces          # pixelate heads in the annotated video
 python -W ignore -m src.run Input_Video/sample1.mp4 --config configs/default.yaml --out outputs
 ```
 

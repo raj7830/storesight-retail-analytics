@@ -446,7 +446,10 @@ function pick(f) {
     $('fmeta').textContent = `${(f.size / 1048576).toFixed(1)} MB · ${v.videoWidth}×${v.videoHeight} · ${fmt(v.duration).replace(/\.\d$/, '')}`;
     v.currentTime = Math.min(5, v.duration / 3);
   };
-  v.onseeked = () => { $('thumb').getContext('2d').drawImage(v, 0, 0, 160, 90); URL.revokeObjectURL(v.src); };
+  // Some CCTV codecs (e.g. MPEG-4 Part 2) can't be decoded by browsers: then there is simply no preview.
+  $('thumb').hidden = true;
+  v.onseeked = () => { $('thumb').getContext('2d').drawImage(v, 0, 0, 160, 90); $('thumb').hidden = false; URL.revokeObjectURL(v.src); };
+  v.onerror = () => { $('fmeta').textContent = `${(f.size / 1048576).toFixed(1)} MB · preview not available for this codec`; };
 }
 
 $('go').onclick = start;

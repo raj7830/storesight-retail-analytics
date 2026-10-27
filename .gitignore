@@ -15,3 +15,8 @@ data/
 
 # public weights are downloaded by `python -m src.tools.download_models`
 models/*.pt
+
+# demo media shown on the README
+!docs/
+!docs/demo.mp4
+!docs/demo.gif

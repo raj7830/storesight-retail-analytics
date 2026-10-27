@@ -151,6 +151,12 @@ interaction:
   # session.
   end_gap_s: 4.0
 
+privacy:
+  # Pixelate every tracked person's head in the annotated output (video,
+  # live stream, snapshots). Analytics are computed on the original frames,
+  # so results are identical either way. Enable for demos / shared footage.
+  blur_faces: false
+
 output:
   write_video: true
   video_codec: h264              # h264 via ffmpeg when available, else mp4v

@@ -35,9 +35,28 @@ class Renderer:
         self.shelves = {k: as_poly(v).astype(np.int32) for k, v in s["shelves"].items()}
         self.centers = {k: poly_center(v) for k, v in self.shelves.items()}
         self.min_samples = cfg["staff"]["min_samples"]
+        self.blur_faces = cfg.get("privacy", {}).get("blur_faces", False)
+
+    @staticmethod
+    def _pixelate_head(img, bbox):
+        # Head = top ~22% of the body box (widened a little): coarse
+        # pixelation hides identity while keeping the scene readable.
+        x1, y1, x2, y2 = bbox.astype(int)
+        h, w = y2 - y1, x2 - x1
+        hx1, hx2 = max(x1 - w // 10, 0), min(x2 + w // 10, img.shape[1])
+        hy1, hy2 = max(y1 - h // 20, 0), min(y1 + int(0.22 * h), img.shape[0])
+        roi = img[hy1:hy2, hx1:hx2]
+        if roi.size == 0:
+            return
+        k = max(2, min(roi.shape[:2]) // 5)
+        small = cv2.resize(roi, (max(1, roi.shape[1] // k), max(1, roi.shape[0] // k)), interpolation=cv2.INTER_AREA)
+        img[hy1:hy2, hx1:hx2] = cv2.resize(small, (roi.shape[1], roi.shape[0]), interpolation=cv2.INTER_NEAREST)
 
     def draw(self, frame, t, persons, pl, metrics) -> np.ndarray:
         img = frame.copy()
+        if self.blur_faces:
+            for p in persons:
+                self._pixelate_head(img, p.det.bbox)
         active_shelf = pl.shelf.active()
         busy = {s for s in active_shelf.values()}
 

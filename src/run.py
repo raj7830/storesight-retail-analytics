@@ -24,11 +24,14 @@ def main(argv=None):
                     help="live-camera mode: analyse the newest frame, drop frames if behind "
                          "(files are played back at real speed)")
     ap.add_argument("--no-video", action="store_true", help="skip writing the annotated video")
+    ap.add_argument("--blur-faces", action="store_true", help="pixelate heads in the annotated output")
     a = ap.parse_args(argv)
 
     cfg = load_config(a.config)
     if a.no_video:
         cfg["output"]["write_video"] = False
+    if a.blur_faces:
+        cfg.setdefault("privacy", {})["blur_faces"] = True
     models = Models(cfg)
     print(f"device: {models.device}", file=sys.stderr)
 
